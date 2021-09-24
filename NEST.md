@@ -36,12 +36,12 @@ Here is a quick overview of what is included. For further information, ☺read t
 			- [`ShowMeshesProgram.hpp`](ShowMeshesProgram.hpp), [`ShowMeshesProgram.cpp`](ShowMeshesProgram.cpp)
 			- [`ShowSceneProgram.hpp`](ShowSceneProgram.hpp), [`ShowSceneProgram.cpp`](ShowSceneProgram.cpp)
 - Here be dragons (files you probably don't need to look at):
+	- [`set-utf8-code-page.manifest`](set-utf8-code-page.manifest) embedded on windows so that the application runs in the UTF-8 code page, as per https://docs.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page .
 	- [`load_wav.hpp`](load_wav.hpp), [`load_wav.cpp`](load_wav.cpp) helper to load wav files. (used by `Sound::Sample`)
 	- [`load_opus.hpp`](load_opus.hpp), [`load_opus.cpp`](load_opus.cpp) helper to load opus files. (used by `Sound::Sample`)
 	- [`make-GL.py`](make-GL.py) does what it says on the tin. Included in case you are curious. You won't need to run it.
 	- [`glcorearb.h`](glcorearb.h) used by `make-GL.py` to produce `GL.*pp`
 	- [`make-PathFont-font.py`](make-PathFont-font.py) processes [`PathFont-font.svg`](PathFont-font.svg) to create [`PathFont-font.cpp`](PathFont-font.cpp) (the line-based font used in the DrawLines code).
-
 
 
 ## Build Instructions
@@ -59,16 +59,16 @@ Setup for your development environment should be relatively simple:
  0. (Optional) Make sure your system is set up to make it easy to use your favorite code editor and git from the command prompt. So much nicer than using a GUI.
  1. Install one of our target C++ compilers:
  	- Linux: g++
-	- MacOS: clang++ (from XCode)
+	- MacOS: clang++ (from XCode). From the terminal: `xcode-select --install`
 	- Windows: Visual Studio Community 2019
- 2. Install ftjam from your OS's package manager:
+ 2. Install ftjam (or regular perforce jam) from your OS's package manager:
     - Linux: e.g. `sudo apt-get install ftjam`
-	- MacOS: e.g. `brew install ftjam`
-	- Windows: (skip this step; jam for windows is included in the nest-libs package)
+	- MacOS: e.g. `brew install jam`
+	- Windows: (skip this step; jam for windows is included in the nest-libs package -- see Windows Note below)
  3. Extract an appropriate [release of nest-libs](https://github.com/15-466/nest-libs/releases) to a sibling of this folder:
-    - Linux: https://github.com/15-466/nest-libs/releases/download/v0.5/nest-libs-linux-v0.5.tar.gz
-	- MacOS: https://github.com/15-466/nest-libs/releases/download/v0.5/nest-libs-macos-v0.5.tar.gz
-	- Windows: https://github.com/15-466/nest-libs/releases/download/v0.5/nest-libs-windows-v0.5.zip
+    - Linux: https://github.com/15-466/nest-libs/releases/download/v0.8/nest-libs-linux-v0.8.tar.gz
+	- MacOS: https://github.com/15-466/nest-libs/releases/download/v0.8/nest-libs-macos-v0.8.tar.gz
+	- Windows: https://github.com/15-466/nest-libs/releases/download/v0.8/nest-libs-windows-v0.8.zip
 
 Once you are finished, your directory tree should looks something like this:
 
