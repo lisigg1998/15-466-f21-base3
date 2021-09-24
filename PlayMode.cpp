@@ -11,16 +11,19 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <random>
+#include <time.h>       /* time */
+#include <thread>         // std::this_thread::sleep_for
+#include <chrono>         // std::chrono::seconds
 
 GLuint hexapod_meshes_for_lit_color_texture_program = 0;
 Load< MeshBuffer > hexapod_meshes(LoadTagDefault, []() -> MeshBuffer const * {
-	MeshBuffer const *ret = new MeshBuffer(data_path("hexapod.pnct"));
+	MeshBuffer const *ret = new MeshBuffer(data_path("arena.pnct"));
 	hexapod_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
 	return ret;
 });
 
-Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
-	return new Scene(data_path("hexapod.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
+Load< Scene > arena_scene(LoadTagDefault, []() -> Scene const * {
+	return new Scene(data_path("arena.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
 		Mesh const &mesh = hexapod_meshes->lookup(mesh_name);
 
 		scene.drawables.emplace_back(transform);
@@ -36,32 +39,58 @@ Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
 	});
 });
 
-Load< Sound::Sample > dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const * {
-	return new Sound::Sample(data_path("dusty-floor.opus"));
-});
+Load< Sound::Sample > begin_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("begin.wav"));
+	});
 
-PlayMode::PlayMode() : scene(*hexapod_scene) {
-	//get pointers to leg for convenience:
-	for (auto &transform : scene.transforms) {
-		if (transform.name == "Hip.FL") hip = &transform;
-		else if (transform.name == "UpperLeg.FL") upper_leg = &transform;
-		else if (transform.name == "LowerLeg.FL") lower_leg = &transform;
+Load< Sound::Sample > over_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("over.wav"));
+	});
+
+Load< Sound::Sample > bleed_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("bleed.wav"));
+	});
+
+Load< Sound::Sample > scream_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("scream.wav"));
+	});
+
+Load< Sound::Sample > block_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("block.wav"));
+	});
+
+Load< Sound::Sample > sword_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("sword.wav"));
+	});
+
+
+Load< Sound::Sample > train_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("train.wav"));
+	});
+
+Load< Sound::Sample > track_sample(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("track.wav"));
+	});
+
+PlayMode::PlayMode() : scene(*arena_scene) {
+
+	for (auto& transform : scene.transforms) {
+		if (transform.name == "enemy") enemy = &transform;
+		else if (transform.name == "player") player = &transform;
 	}
-	if (hip == nullptr) throw std::runtime_error("Hip not found.");
-	if (upper_leg == nullptr) throw std::runtime_error("Upper leg not found.");
-	if (lower_leg == nullptr) throw std::runtime_error("Lower leg not found.");
+	if (player == nullptr) throw std::runtime_error("player not found.");
+	if (enemy == nullptr) throw std::runtime_error("enemy not found.");
 
-	hip_base_rotation = hip->rotation;
-	upper_leg_base_rotation = upper_leg->rotation;
-	lower_leg_base_rotation = lower_leg->rotation;
+	enemy_init_pos = enemy->position;
 
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
 
-	//start music loop playing:
-	// (note: position will be over-ridden in update())
-	leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
+	//begin sfx
+	Sound::play(*begin_sample, 5.0f, 0.1f);
+
+
 }
 
 PlayMode::~PlayMode() {
@@ -73,53 +102,51 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		if (evt.key.keysym.sym == SDLK_ESCAPE) {
 			SDL_SetRelativeMouseMode(SDL_FALSE);
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_a) {
+		}
+		else if (evt.key.keysym.sym == SDLK_a) {
 			left.downs += 1;
 			left.pressed = true;
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_d) {
+		}
+		else if (evt.key.keysym.sym == SDLK_d) {
 			right.downs += 1;
 			right.pressed = true;
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_w) {
+		}
+		else if (evt.key.keysym.sym == SDLK_w) {
 			up.downs += 1;
 			up.pressed = true;
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_s) {
+		}
+		else if (evt.key.keysym.sym == SDLK_s) {
 			down.downs += 1;
 			down.pressed = true;
 			return true;
 		}
-	} else if (evt.type == SDL_KEYUP) {
+		else if (evt.key.keysym.sym == SDLK_r) {
+			block = true;
+			return true;
+		}
+	}
+	else if (evt.type == SDL_KEYUP) {
 		if (evt.key.keysym.sym == SDLK_a) {
 			left.pressed = false;
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_d) {
+		}
+		else if (evt.key.keysym.sym == SDLK_d) {
 			right.pressed = false;
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_w) {
+		}
+		else if (evt.key.keysym.sym == SDLK_w) {
 			up.pressed = false;
 			return true;
-		} else if (evt.key.keysym.sym == SDLK_s) {
+		}
+		else if (evt.key.keysym.sym == SDLK_s) {
 			down.pressed = false;
 			return true;
 		}
-	} else if (evt.type == SDL_MOUSEBUTTONDOWN) {
-		if (SDL_GetRelativeMouseMode() == SDL_FALSE) {
-			SDL_SetRelativeMouseMode(SDL_TRUE);
-			return true;
-		}
-	} else if (evt.type == SDL_MOUSEMOTION) {
-		if (SDL_GetRelativeMouseMode() == SDL_TRUE) {
-			glm::vec2 motion = glm::vec2(
-				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y)
-			);
-			camera->transform->rotation = glm::normalize(
-				camera->transform->rotation
-				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f))
-				* glm::angleAxis(motion.y * camera->fovy, glm::vec3(1.0f, 0.0f, 0.0f))
-			);
+		else if (evt.key.keysym.sym == SDLK_r) {
+			block = false;
 			return true;
 		}
 	}
@@ -128,55 +155,160 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 }
 
 void PlayMode::update(float elapsed) {
+	if (game_over == 1) {
+		return;
+	}
+	static std::mt19937 mt;
 
-	//slowly rotates through [0,1):
-	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
+	if (game_stat == 0) {
+		timer -= elapsed;
+		if (timer < 0) {
+			// set attack type and direction, set enemy position, set game stat
+			game_stat = 1;
+			attack_type = mt() % 2;
+			attack_from = mt() % 3;
+			float offset = (mt() / float(mt.max())) * 20.0f + 0.3f;
+			enemy_speed = (mt() / float(mt.max())) * 20.0f + 16.3f;
+			if (attack_from == 0) {
+				enemy->position = glm::vec3(0.0f, 0.0f, -10.0f - offset);
+			}
+			else if (attack_from == 1) {
+				enemy->position = glm::vec3(-20.0f - offset, 0.0f, 10.0f);
+			}
+			else if (attack_from == 2) {
+				enemy->position = glm::vec3(20.0f + offset, 0.0f, 10.0f);
+			}
+		}
+	}
+	else if (game_stat == 1) {
+		// enemy move
+		if (attack_type == 0) {
+			if (attack_play == 0) {
+				sword_sfx_loop = Sound::loop_3D(*sword_sample, 7.0f, enemy->position, 0.1f);
+				attack_play = 1;
+			}
+			//check hit
+			{
+				auto diff = enemy->position - player->position;
+				if (diff.x * diff.x + diff.y * diff.y + diff.z * diff.z <= 1.0f) {
+					if (block == 0) {
+						sword_sfx_loop->stop();
+						game_stat = 3;
+						return;
+					}
+					else {
+						sword_sfx_loop->stop();
+						block_sfx = Sound::play(*block_sample, 2.0f, 0.1f);
+						game_stat = 2;
+						return;
+					}
+					
+				}
+			}
+			if (attack_from == 0 && enemy->position.z < 10.0f) {
+				enemy->position.z += enemy_speed * elapsed ;
+			}
+			else if (attack_from == 1 && enemy->position.x < 0.0f) {
+				enemy->position.x += enemy_speed * elapsed ;
+			}
+			else if (attack_from == 2 && enemy->position.x > 0.0f) {
+				enemy->position.x -= enemy_speed * elapsed ;
+			}
+			else {
+				sword_sfx_loop->stop();
+				game_stat = 2;
+				return;
+			}
+			sword_sfx_loop->set_position(enemy->position, 1.0f / 60.0f);
+		}
+		else if (attack_type == 1) {
+			if (attack_play == 0) {
+				train_sfx_loop = Sound::loop_3D(*train_sample, 7.0f, enemy->position, 0.1f);
+				track_sfx_loop = Sound::loop_3D(*track_sample, 7.0f, enemy->position, 0.1f);
+				attack_play = 1;
+			}
+			//check hit
+			{
+				auto diff = enemy->position - player->position;
+				if (diff.x * diff.x + diff.y * diff.y + diff.z * diff.z <= 1.0f) {
+					train_sfx_loop->stop();
+					track_sfx_loop->stop();
+					game_stat = 3;
+					return;
 
-	hip->rotation = hip_base_rotation * glm::angleAxis(
-		glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 1.0f, 0.0f)
-	);
-	upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-		glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-	lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-		glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
+				}
+			}
+			if (attack_from == 0 && enemy->position.z < 40.0f) {
+				enemy->position.z += enemy_speed * elapsed ;
+			}
+			else if (attack_from == 1 && enemy->position.x < 40.0f) {
+				enemy->position.x += enemy_speed * elapsed ;
+			}
+			else if (attack_from == 2 && enemy->position.x > -40.0f) {
+				enemy->position.x -= enemy_speed * elapsed ;
+			}
+			else {
+				train_sfx_loop->stop();
+				track_sfx_loop->stop();
+				game_stat = 2;
+				return;
+			}
+			train_sfx_loop->set_position(enemy->position, 1.0f / 60.0f);
+			track_sfx_loop->set_position(enemy->position, 1.0f / 60.0f);
+		}
+	}
+	else if (game_stat == 2) {
+		//reset enemy to init pos, reset timer
+		timer = (mt() / float(mt.max())) * 3.0f + 0.3f;
+		enemy->position = enemy_init_pos;
+		attack_play = 0;
+		game_stat = 0;
+	}
+	else if (game_stat == 3) {
+		game_over = 1;
+		
+		bleed_sfx = Sound::play(*bleed_sample, 3.0f, 0.1f);
+		scream_sfx = Sound::play(*scream_sample, 4.0f, 0.1f);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		over_sfx = Sound::play(*over_sample, 3.0f, 0.1f);
 
-	//move sound to follow leg tip position:
-	leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
-
-	//move camera:
-	{
-
-		//combine inputs into a move:
-		constexpr float PlayerSpeed = 30.0f;
-		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) move.x =-1.0f;
-		if (!left.pressed && right.pressed) move.x = 1.0f;
-		if (down.pressed && !up.pressed) move.y =-1.0f;
-		if (!down.pressed && up.pressed) move.y = 1.0f;
-
-		//make it so that moving diagonally doesn't go faster:
-		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
-
-		glm::mat4x3 frame = camera->transform->make_local_to_parent();
-		glm::vec3 right = frame[0];
-		//glm::vec3 up = frame[1];
-		glm::vec3 forward = -frame[2];
-
-		camera->transform->position += move.x * right + move.y * forward;
+		return;
 	}
 
+
+	// player movement
+	if (up.pressed == 1 ) {
+		if(player->position.z > 5.0f)
+			player->position.z -= 2 * player_speed * elapsed;
+	}
+	else if (down.pressed == 1 ) {
+		if(player->position.z < 15.0f)
+			player->position.z += 2 * player_speed * elapsed;
+	} 
+	else if (left.pressed == 1) {
+		if(player->position.x > -6.0f)
+			player->position.x -= 2 * player_speed * elapsed;
+	} 
+	else if (right.pressed == 1 ) {
+		if(player->position.x < 6.0f)
+			player->position.x += 2 * player_speed * elapsed;
+	} 
+	else {
+		if (player->position.z > 10.1f) player->position.z -= player_speed * elapsed * glm::abs(player->position.z - 10.0f);
+		else if(player->position.z < 9.9f) player->position.z += player_speed * elapsed * glm::abs(player->position.z - 10.0f);
+		if(player->position.x > 0.1f) player->position.x -= player_speed * elapsed * glm::abs(player->position.x + 0.5f);
+		else if (player->position.x < -0.1f) player->position.x += player_speed * elapsed * glm::abs(player->position.x + 0.5f);
+	}
+		
+	
+
 	{ //update listener to camera position:
-		glm::mat4x3 frame = camera->transform->make_local_to_parent();
+		glm::mat4x3 frame = player->make_local_to_parent();
 		glm::vec3 right = frame[0];
 		glm::vec3 at = frame[3];
 		Sound::listener.set_position_right(at, right, 1.0f / 60.0f);
 	}
+
 
 	//reset button press counters:
 	left.downs = 0;
@@ -216,21 +348,41 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 			0.0f, 0.0f, 0.0f, 1.0f
 		));
 
-		constexpr float H = 0.09f;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
-		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+		if (!game_over)
+		{
+			constexpr float H = 0.09f;
+			std::string s = "WASD moves player; R to block, Q to quit the game ";
+			lines.draw_text(s,
+				glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0xff));
+			float ofs = 2.0f / drawable_size.y;
+			lines.draw_text(s,
+				glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + +0.1f * H + ofs, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+		}
+		else
+		{
+			constexpr float H = 0.29f;
+			std::string s = "You died";
+
+			lines.draw_text(s,
+				glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0x00, 0x00, 0x00));
+			float ofs = 2.0f / drawable_size.y;
+			lines.draw_text(s,
+				glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + +0.1f * H + ofs, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0x00, 0x00, 0x00));
+		}
 	}
 	GL_ERRORS();
 }
 
-glm::vec3 PlayMode::get_leg_tip_position() {
-	//the vertex position here was read from the model in blender:
-	return lower_leg->make_local_to_world() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
-}
+
+//glm::vec3 PlayMode::get_leg_tip_position() {
+//	//the vertex position here was read from the model in blender:
+//	//return lower_leg->make_local_to_world() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
+//}

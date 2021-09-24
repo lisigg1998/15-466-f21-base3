@@ -28,21 +28,38 @@ struct PlayMode : Mode {
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
-	//hexapod leg to wobble:
-	Scene::Transform *hip = nullptr;
-	Scene::Transform *upper_leg = nullptr;
-	Scene::Transform *lower_leg = nullptr;
-	glm::quat hip_base_rotation;
-	glm::quat upper_leg_base_rotation;
-	glm::quat lower_leg_base_rotation;
-	float wobble = 0.0f;
+	Scene::Transform* player = nullptr;
+	Scene::Transform* enemy = nullptr;
 
-	glm::vec3 get_leg_tip_position();
+	float player_speed = 20.0f;
+	float enemy_speed = 7.0f;
 
-	//music coming from the tip of the leg (as a demonstration):
-	std::shared_ptr< Sound::PlayingSample > leg_tip_loop;
+	glm::vec3 enemy_init_pos;
 	
+	//music sample pointers
+	std::shared_ptr< Sound::PlayingSample > begin_sfx; // game begin
+
+	std::shared_ptr< Sound::PlayingSample > over_sfx;	// game over
+	std::shared_ptr< Sound::PlayingSample > bleed_sfx;
+	std::shared_ptr< Sound::PlayingSample > scream_sfx;
+
+	std::shared_ptr< Sound::PlayingSample > block_sfx;	// block attack
+	
+	std::shared_ptr< Sound::PlayingSample > sword_sfx_loop; // sword
+
+	std::shared_ptr< Sound::PlayingSample > train_sfx_loop; //train
+	std::shared_ptr< Sound::PlayingSample > track_sfx_loop;
+
+	uint8_t attack_type = 0; //0:sword, 1:train
+	uint8_t attack_from = 0; //0:front, 1:left, 2:right
+	float timer = 3.0f;
+	uint8_t game_over = 0;
+	uint8_t block = 0;
+	uint8_t game_stat = 0; //0: counting down; 1: enemy acting; 2:enemy finish acting; 3: game over
+	uint8_t attack_play = 0;
+
 	//camera:
 	Scene::Camera *camera = nullptr;
+
 
 };
